@@ -5,6 +5,8 @@ import mongoose from 'mongoose';
 import { connectRedis, redis } from './config/redis.js';
 import { rebalance, rebalanceMinimumWorkers } from './services/runtime.js';
 
+const singleServiceMode = process.argv.includes('--single-service');
+
 if (process.argv.includes('--worker')) {
   const { startWorker } = await import('./runtime/worker.js');
   await startWorker();
@@ -27,6 +29,23 @@ if (process.argv.includes('--worker')) {
   const server = app.listen(port, () =>
     console.log(`ActorLab API listening on http://localhost:${port}`),
   );
+  if (singleServiceMode) {
+    process.env.WORKER_ID ||= 'actorlab-render-worker-1';
+    process.env.WORKER_PORT ||= '3101';
+    process.env.WORKER_ADVERTISE_HOST ||= '127.0.0.1';
+    process.env.COORDINATOR_URL ||= `http://127.0.0.1:${port}`;
+    const launchWorker = async () => {
+      try {
+        const { startWorker } = await import('./runtime/worker.js');
+        await startWorker();
+      } catch (error) {
+        console.error(`Worker startup failed; retrying in 5s: ${error.message}`);
+        setTimeout(launchWorker, 5000).unref?.();
+      }
+    };
+    launchWorker();
+    console.log('Single-service mode enabled; actor worker will run in this web process.');
+  }
   const retryTimer = setInterval(() => {
     if (mongoose.connection.readyState !== 1) connectDatabase().catch(() => {});
     if (!redis.isReady && !redis.isOpen) connectRedis().catch(() => {});

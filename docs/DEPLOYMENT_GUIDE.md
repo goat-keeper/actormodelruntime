@@ -42,16 +42,21 @@ volumes. `docker compose down` stops services but preserves those volumes.
 The Compose file does not configure MongoDB or Redis authentication. It is
 development configuration only.
 
-## Render (web API + private worker)
+## Render (one web service)
 
-The repository includes [render.yaml](../render.yaml). In Render, create a new
-Blueprint from this repository and provide `MONGODB_URI` and `REDIS_URL` when
-prompted for both services. The Blueprint creates a public `actorlab-api` web
-service and a private `actorlab-worker` service. The worker must be reachable
-over HTTP by the API for actor message processing and migration, so it is a
-private service rather than a background worker. `K8S_MODE=simulator` displays
-the simulated cluster in the dashboard; it does not replace the real actor
-worker, MongoDB, or Redis.
+The repository includes [render.yaml](../render.yaml) for a single Render web
+service. Its `start:render` command runs both the API and its HTTP actor worker
+inside the same process/container; the worker is reachable over localhost and
+does not require a second Render service. `K8S_MODE=simulator` displays the
+simulated Kubernetes cluster; it does not replace the real actor worker,
+MongoDB, or Redis. Run only one instance of this service because each instance
+starts the same worker identity and the worker URL is local to that instance.
+
+To deploy without a Blueprint, create one **Web Service** from this repository
+in Render with Node runtime, build command `npm ci`, start command
+`npm run start:render`, and health check path `/api/health`. Add the same
+environment variables listed below in the service settings. The Blueprint
+configures those same settings automatically.
 
 Create a MongoDB Atlas database and allow connections from Render (for a quick
 demo, Atlas can allow `0.0.0.0/0`; use stronger network restrictions where
@@ -64,15 +69,16 @@ mongodb+srv://<db-user>:<db-password>@<cluster-host>/actorlab?retryWrites=true&w
 
 In Upstash, create a Redis database and copy its **Redis URL** connection
 string, which should use TLS and begin with `rediss://`. Set that full value as
-`REDIS_URL` on both Render services. It contains the Upstash username/password
+`REDIS_URL` on the Render service. It contains the Upstash username/password
 and hostname; do not use the REST URL or REST token. No separate Kubernetes,
 Render, or application API key is required by this app.
 
-Keep `WORKER_ID`, `WORKER_PORT`, `WORKER_ADVERTISE_HOST`, and `COORDINATOR_URL`
-as set by the Blueprint. Do not expose the worker publicly. The free Render
-web-service plan may spin down when idle; use an always-on plan for a worker
-that must continuously process messages. MongoDB Atlas and Upstash have their
-own plans, quotas, and network settings.
+Set `K8S_MODE=simulator`, `RUNTIME_MODE=render`, and `NODE_ENV=production`.
+Single-service mode supplies worker identity, localhost advertise address, and
+coordinator URL automatically. The free Render web service may spin down when
+idle, so actor processing pauses while it sleeps and resumes after a request
+wakes the service. MongoDB Atlas and Upstash have their own plans, quotas, and
+network settings.
 
 ## Build and run containers separately
 

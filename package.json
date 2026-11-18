@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "start:render": "node src/server.js",
+    "start:render": "node src/server.js --single-service",
     "dev": "node --watch src/server.js",
     "worker": "node src/server.js --worker",
     "worker:render": "node src/server.js --worker",
