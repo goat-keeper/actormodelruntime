@@ -112,16 +112,29 @@ router.get(
 router.get(
   '/rebalancing',
   asyncHandler(async (_req, res) => {
-    const registry = await listWorkers()
-      .then((workers) => ({ workers, available: true }))
-      .catch(() => ({ workers: [], available: false }));
+    const [registry, cluster] = await Promise.all([
+      listWorkers()
+        .then((workers) => ({ workers, available: true }))
+        .catch(() => ({ workers: [], available: false })),
+      getClusterStatus(),
+    ]);
+    const workers = cluster.simulated
+      ? (cluster.pods || []).map((pod) => ({
+          workerId: pod.metadata.name,
+          host: pod.spec?.nodeName,
+          simulated: true,
+        }))
+      : registry.workers;
+    const actors = await Actor.find().lean();
     return render(res, 'rebalancing', 'Rebalancing', {
       ...registry,
+      workers,
+      simulated: Boolean(cluster.simulated),
       minimumWorkers: rebalanceMinimumWorkers,
       autoRebalanceIntervalMs: Number(
         process.env.AUTO_REBALANCE_INTERVAL_MS || 10000,
       ),
-      actors: await Actor.find().lean(),
+      actors,
       events: await allRuntimeEvents(20),
       migrations: await ActorMigration.find()
         .sort({ startedAt: -1 })
@@ -195,6 +208,10 @@ router.post(
         '/cluster?error=Enter%20a%20replica%20count%20from%200%20to%2050',
       );
     await scaleWorkers(replicas);
+    if ((await getClusterStatus()).simulated)
+      await rebalance().catch((error) => {
+        if (error.status !== 409) throw error;
+      });
     res.redirect('/cluster?message=Worker%20scale%20requested');
   }),
 );

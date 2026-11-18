@@ -69,10 +69,21 @@ router.post(
 router.get(
   '/rebalancing/status',
   asyncHandler(async (_req, res) => {
-    const workers = await listWorkers();
+    const [registeredWorkers, cluster] = await Promise.all([
+      listWorkers(),
+      getClusterStatus(),
+    ]);
+    const workers = cluster.simulated
+      ? (cluster.pods || []).map((pod) => ({
+          workerId: pod.metadata.name,
+          host: pod.spec?.nodeName,
+          simulated: true,
+        }))
+      : registeredWorkers;
     const actors = await Actor.find().lean();
     res.json({
       automatic: true,
+      simulated: Boolean(cluster.simulated),
       minimumWorkers: rebalanceMinimumWorkers,
       intervalMs: Number(process.env.AUTO_REBALANCE_INTERVAL_MS || 10000),
       workers,
@@ -205,6 +216,10 @@ router.post(
         .status(400)
         .json({ error: 'replicas must be an integer from 0 to 50' });
     await scaleWorkers(replicas);
+    if ((await getClusterStatus()).simulated)
+      await rebalance().catch((error) => {
+        if (error.status !== 409) throw error;
+      });
     res.json({ ok: true, replicas });
   }),
 );

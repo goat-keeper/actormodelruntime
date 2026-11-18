@@ -3,7 +3,8 @@ import Actor from '../models/Actor.js';
 import Message from '../models/Message.js';
 import RuntimeEvent from '../models/RuntimeEvent.js';
 import ActorMigration from '../models/ActorMigration.js';
-import { getWorkerResourceMetrics } from './kubernetes.js';
+import { getClusterStatus, getWorkerResourceMetrics } from './kubernetes.js';
+import { planSimulatedPlacements } from './simulated-rebalancer.js';
 import { redis } from '../config/redis.js';
 
 const OWNER_KEY = 'actorlab:owners';
@@ -1012,6 +1013,8 @@ export async function dashboardData() {
 }
 
 async function rebalanceUnlocked() {
+  const cluster = await getClusterStatus();
+  if (cluster.simulated) return rebalanceSimulated(cluster);
   const workers = await listWorkers();
   if (workers.length < rebalanceMinimumWorkers) {
     const e = new Error(
@@ -1129,7 +1132,8 @@ async function rebalanceUnlocked() {
     if (!donor || !receiver || (!failedWorker && donor[0] === receiver[0]))
       break;
     if (
-      !failedWorker && donor[1] - receiver[1] <= 1
+      !failedWorker &&
+      donor[1] - receiver[1] <= 1
     )
       break;
     if (!failedWorker && actor.workerId !== donor[0]) continue;
@@ -1261,6 +1265,61 @@ async function rebalanceUnlocked() {
     { moved, distribution: Object.fromEntries(counts) },
   );
   return { moved, distribution: Object.fromEntries(counts) };
+}
+
+async function rebalanceSimulated(cluster) {
+  const workers = (cluster.pods || [])
+    .filter(
+      (pod) =>
+        pod.status?.phase === 'Running' &&
+        pod.status?.conditions?.some(
+          (condition) =>
+            condition.type === 'Ready' && condition.status === 'True',
+        ),
+    )
+    .map((pod) => ({ workerId: pod.metadata.name, host: pod.spec?.nodeName }));
+  const actors = await Actor.find().sort({ actorId: 1 });
+  const placements = planSimulatedPlacements(actors, workers);
+  let moved = 0;
+  const distribution = Object.fromEntries(
+    workers.map((worker) => [worker.workerId, 0]),
+  );
+
+  for (const { actor, workerId } of placements) {
+    if (!workerId) {
+      if (actor.simulatedWorkerId) {
+        actor.simulatedWorkerId = null;
+        await actor.save();
+        moved += 1;
+      }
+      continue;
+    }
+    distribution[workerId] += 1;
+    if (actor.simulatedWorkerId === workerId) continue;
+    const sourceWorkerId = actor.simulatedWorkerId || null;
+    const fromGeneration = actor.simulatedGeneration || 0;
+    actor.simulatedWorkerId = workerId;
+    actor.simulatedGeneration = fromGeneration + 1;
+    await actor.save();
+    await ActorMigration.create({
+      actorId: actor.actorId,
+      sourceWorkerId,
+      destinationWorkerId: workerId,
+      fromGeneration,
+      toGeneration: actor.simulatedGeneration,
+      simulated: true,
+      status: 'COMPLETED',
+      completedAt: new Date(),
+    });
+    moved += 1;
+  }
+
+  await recordEvent(
+    'actors.simulated_rebalanced',
+    `Simulation redistributed ${moved} actor(s) across ${workers.length} virtual worker(s)`,
+    { moved, simulated: true, distribution },
+  );
+  return { moved, distribution, simulated: true };
 }
 
 export async function rebalance() {

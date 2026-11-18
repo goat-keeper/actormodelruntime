@@ -33,6 +33,10 @@ const ActorSchema = new mongoose.Schema(
       default: 'uninitialized',
     },
     workerId: { type: String, default: null },
+    // Display-only placement used by the cluster simulator. Real message
+    // routing continues to use workerId exclusively.
+    simulatedWorkerId: { type: String, default: null },
+    simulatedGeneration: { type: Number, default: 0 },
     ownerGeneration: { type: Number, default: 0 },
     singletonGeneration: { type: Number, default: 0 },
     messageSequence: { type: Number, default: 0 },

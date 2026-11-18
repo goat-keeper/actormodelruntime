@@ -39,18 +39,19 @@ if (liveRebalancing) {
     const workers = data.workers || [];
     const actors = data.actors || [];
     const total = actors.length;
-    summary.textContent = `${workers.length} live worker(s) · ${total} assigned actor(s)`;
+    summary.textContent = `${workers.length} ${data.simulated ? 'simulated' : 'live'} worker(s) - ${total} assigned actor(s)`;
     if (!workers.length) {
-      distribution.innerHTML =
-        '<div class="empty">Waiting for worker pods to register.</div>';
+      distribution.innerHTML = `<div class="empty">${data.simulated ? 'No simulated worker pods are ready.' : 'Waiting for worker pods to register.'}</div>`;
     } else {
       distribution.innerHTML = workers
         .map((worker) => {
           const count = actors.filter(
-            (actor) => actor.workerId === worker.workerId,
+            (actor) =>
+              (data.simulated ? actor.simulatedWorkerId : actor.workerId) ===
+              worker.workerId,
           ).length;
           const width = Math.max(4, total ? (count / total) * 100 : 0);
-          return `<div class="dist-row"><div><b>${escape(worker.workerId)}</b><small>${escape(worker.host || worker.url)} · target about ${Math.ceil(total / workers.length)}</small></div><div class="dist-bar"><i style="width:${width}%"></i></div><strong>${count}</strong></div>`;
+          return `<div class="dist-row"><div><b>${escape(worker.workerId)}</b><small>${escape(worker.host || worker.url)} · target about ${Math.ceil(total / workers.length)}${data.simulated ? ' (simulated)' : ''}</small></div><div class="dist-bar"><i style="width:${width}%"></i></div><strong>${count}</strong></div>`;
         })
         .join('');
     }
@@ -67,7 +68,7 @@ if (liveRebalancing) {
       ? `<table><thead><tr><th>ACTOR</th><th>SOURCE POD</th><th>DESTINATION POD</th><th>GENERATION</th><th>STATUS</th><th>STARTED</th></tr></thead><tbody>${data.migrations
           .map(
             (migration) =>
-              `<tr><td>${escape(migration.actorId)}</td><td>${escape(migration.sourceWorkerId || 'UNASSIGNED')}</td><td>${escape(migration.destinationWorkerId)}</td><td>${migration.fromGeneration} → ${migration.toGeneration}</td><td>${escape(migration.status)}${migration.error ? `: ${escape(migration.error)}` : ''}</td><td>${formatTime(migration.startedAt)}</td></tr>`,
+              `<tr><td>${escape(migration.actorId)}</td><td>${escape(migration.sourceWorkerId || 'UNASSIGNED')}</td><td>${escape(migration.destinationWorkerId)}</td><td>${migration.fromGeneration} → ${migration.toGeneration}</td><td>${migration.simulated ? 'SIMULATED ' : ''}${escape(migration.status)}${migration.error ? `: ${escape(migration.error)}` : ''}</td><td>${formatTime(migration.startedAt)}</td></tr>`,
           )
           .join('')}</tbody></table>`
       : '<div class="empty">No automatic migrations recorded yet.</div>';

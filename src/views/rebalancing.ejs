@@ -5,8 +5,12 @@
     </div>
     <h1>Automatic balancing</h1>
     <p>
+      <% if (simulated) { %>
+      Simulation mode redistributes display-only actor placements across virtual workers. Actor message processing continues on real registered workers.
+      <% } else { %>
       Actors are redistributed automatically after worker joins, drains, and
       periodic health checks. Use the manual run below when you need to show a handoff immediately.
+      <% } %>
     </p>
   </div>
   <div class="live-status" aria-live="polite">
@@ -16,17 +20,21 @@
 </section>
 <section class="panel form-panel manual-action-panel">
   <div class="panel-heading">
-    <div><h2>Manual rebalance</h2><small>Runs the safe drain, transfer, and resume workflow immediately.</small></div>
+    <div><h2>Manual rebalance</h2><small><%= simulated ? 'Redistributes display-only placements across virtual workers immediately.' : 'Runs the safe drain, transfer, and resume workflow immediately.' %></small></div>
     <form method="post" action="/rebalancing/trigger"><button class="button primary" type="submit">Run rebalance now</button></form>
   </div>
-  <p class="subtle">Requires at least <%= minimumWorkers %> live workers. “Moved 0 actors” means placement was already balanced.</p>
+  <p class="subtle"><%= simulated ? 'Uses ready virtual pods; placements are separate from live ownership.' : `Requires at least ${minimumWorkers} live workers.` %></p>
 </section>
 <div class="note-bar auto-note">
   <span class="note-symbol">A</span>
   <p>
+    <% if (simulated) { %>
+    <b>Simulation:</b> automatic balancing uses ready virtual pods and updates simulated placements; no Kubernetes pods or actor handoffs are created. The coordinator checks every <%= autoRebalanceIntervalMs / 1000 %> seconds.
+    <% } else { %>
     <b>Two-pod threshold:</b> balancing starts only when at least
     <%= minimumWorkers %> live worker pods are registered. The coordinator runs
     every <%= autoRebalanceIntervalMs / 1000 %> seconds and immediately on pod join or drain.
+    <% } %>
   </p>
 </div>
 <section class="panel table-panel">
@@ -34,19 +42,19 @@
     <div>
       <h2>Current distribution</h2>
       <small data-distribution-summary
-        ><%= workers.length %> live worker(s) · <%= actors.length %> assigned
+        ><%= workers.length %> <%= simulated ? 'simulated worker(s)' : 'live worker(s)' %> - <%= actors.length %> assigned
         actor(s)</small
       >
     </div>
   </div>
   <% if(workers.length){ %>
   <div class="distribution" data-distribution>
-    <% workers.forEach(worker=>{const count=actors.filter(a=>a.workerId===worker.workerId).length; %>
+    <% workers.forEach(worker=>{const count=actors.filter(a=>(simulated?a.simulatedWorkerId:a.workerId)===worker.workerId).length; %>
     <div class="dist-row">
       <div>
         <b><%= worker.workerId %></b
         ><small
-          ><%= worker.host || worker.url %> · target about <%= Math.ceil(actors.filter(a=>a.workerId).length / workers.length) %></small
+          ><%= worker.host || worker.url %> · target about <%= Math.ceil(actors.filter(a=>simulated?a.simulatedWorkerId:a.workerId).length / workers.length) %><%= simulated ? ' (simulated)' : '' %></small
         >
       </div>
       <div class="dist-bar">
@@ -58,7 +66,7 @@
   </div>
   <% }else{ %>
   <div class="empty">
-    Start at least two workers to demonstrate actor migration.
+    <%= simulated ? 'Scale the simulated worker pool above zero to place actors.' : 'Start at least two workers to demonstrate actor migration.' %>
   </div>
   <% } %>
 </section>

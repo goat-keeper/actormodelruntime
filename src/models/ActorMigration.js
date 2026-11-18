@@ -5,6 +5,7 @@ const ActorMigrationSchema = new mongoose.Schema(
     actorId: { type: String, required: true, index: true },
     sourceWorkerId: { type: String, default: null },
     destinationWorkerId: { type: String, required: true },
+    simulated: { type: Boolean, default: false, index: true },
     fromGeneration: { type: Number, required: true },
     toGeneration: { type: Number, required: true },
     status: {
