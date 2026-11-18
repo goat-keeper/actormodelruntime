@@ -1,0 +1,25 @@
+<section class="page-head" data-live-cluster data-refresh-ms="5000">
+  <div>
+    <div class="section-kicker">CLUSTER <span><%= cluster.simulated ? 'SIMULATED AUTOSCALING' : 'HPA DEMONSTRATION' %></span></div>
+    <h1>Scaling simulator</h1>
+    <p>Explore worker scaling without a Kubernetes cluster. Virtual workers and metrics are in-process demo data.</p>
+  </div>
+  <div class="live-status"><i class="status-dot <%= cluster.simulated ? 'amber' : 'green' %>"></i><span><%= cluster.simulated ? 'Simulation active' : 'Live Kubernetes status' %></span><small>refreshes every 5 seconds</small></div>
+</section>
+<section class="panel simulator-controls">
+  <div class="panel-heading"><div><h2>Load generator</h2><small>Toggle simulated traffic to change virtual CPU and memory pressure.</small></div><span class="badge <%= simulator.running ? 'online' : 'balanced' %>"><%= simulator.running ? 'LOAD RUNNING' : 'LOAD STOPPED' %></span></div>
+  <div class="simulator-buttons">
+    <form method="post" action="/simulator/upscale"><button class="button primary" type="submit" <%= !cluster.simulated || simulator.running ? 'disabled' : '' %>>Start simulated load</button></form>
+    <form method="post" action="/simulator/downscale"><button class="button" type="submit" <%= !cluster.simulated || !simulator.running ? 'disabled' : '' %>>Stop simulated load</button></form>
+  </div>
+  <p class="subtle">Starting load raises virtual resource use and scales replicas up to the configured maximum. Stopping load returns replicas toward the minimum. No real Kubernetes resources are created.</p>
+</section>
+<section class="metric-grid simulator-metrics">
+  <article class="panel metric"><small>READY WORKERS</small><strong><%= cluster.deploymentStatus?.readyReplicas ?? 0 %></strong><span>simulated workers</span></article>
+  <article class="panel metric"><small>DESIRED WORKERS</small><strong><%= cluster.deployment?.replicas ?? '—' %></strong><span>virtual replicas</span></article>
+  <article class="panel metric"><small>HPA TARGET RANGE</small><strong><%= cluster.autoscaler ? `${cluster.autoscaler.minReplicas}–${cluster.autoscaler.maxReplicas}` : '—' %></strong><span>virtual workers</span></article>
+  <% const cpu=cluster.autoscalerStatus?.currentMetrics?.find(metric=>metric.resource?.name==='cpu')?.resource?.current; const memory=cluster.autoscalerStatus?.currentMetrics?.find(metric=>metric.resource?.name==='memory')?.resource?.current; %>
+  <article class="panel metric"><small>WORKER CPU</small><strong><%= cpu?.averageUtilization != null ? `${cpu.averageUtilization}%` : '—' %></strong><span>simulated usage</span></article>
+  <article class="panel metric"><small>WORKER MEMORY</small><strong><%= memory?.averageUtilization != null ? `${memory.averageUtilization}%` : '—' %></strong><span>simulated usage</span></article>
+</section>
+<section class="panel form-panel"><div class="panel-heading"><div><h2>Autoscaler status</h2><small><%= cluster.autoscalerStatus?.conditions?.[0]?.message || 'Waiting for simulator status.' %></small></div><span class="badge online">SIMULATED HPA</span></div><p class="subtle">This demonstration models the Kubernetes cluster interface only. Actor processing still requires the configured actor runtime, database, and Redis services.</p></section>

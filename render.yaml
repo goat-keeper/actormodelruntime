@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: actorlab-api
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm run start:render
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: K8S_MODE
+        value: simulator
+      - key: RUNTIME_MODE
+        value: render
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+
+  - type: pserv
+    name: actorlab-worker
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm run worker:render
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_ID
+        value: actorlab-render-worker-1
+      - key: WORKER_PORT
+        value: "10000"
+      - key: WORKER_ADVERTISE_HOST
+        value: actorlab-worker
+      - key: COORDINATOR_URL
+        value: http://actorlab-api:10000
+      - key: RUNTIME_MODE
+        value: render
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false

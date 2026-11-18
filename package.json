@@ -1,0 +1,36 @@
+{
+  "name": "actormodelruntime",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "start:render": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "worker": "node src/server.js --worker",
+    "worker:render": "node src/server.js --worker",
+    "seed": "node scripts/seed.js",
+    "demo:seed": "node scripts/seed-demo.js",
+    "test": "node --test",
+    "test:integration": "node --test test/*.test.js",
+    "format": "prettier --write \"**/*.{js,css,yaml,yml,json,md,html}\" && node scripts/format-ejs.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@kubernetes/client-node": "^1.4.0",
+    "dotenv": "^16.4.7",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "mongoose": "^8.12.1",
+    "redis": "^4.7.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3"
+  },
+  "type": "module"
+}
